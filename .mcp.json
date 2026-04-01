@@ -1,0 +1,19 @@
+{
+	"mcpServers": {
+		"toflow": {
+			"command": "npx",
+			"args": [
+				"mcp-remote@latest",
+				"https://api.toflow.ai/mcp"
+			]
+		},
+		"google-calendar": {
+			"type": "http",
+			"url": "https://gcal.mcp.claude.com/mcp"
+		},
+		"ai-ark": {
+			"type": "http",
+			"url": "https://api.ai-ark.com/v1/mcp?token=${AI_ARK_TOKEN}"
+		}
+	}
+}
