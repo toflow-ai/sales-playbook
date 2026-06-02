@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__toflow__get_person",
+      "mcp__toflow__get_company",
+      "mcp__toflow__update_record",
+      "mcp__toflow__complete_subagent_task"
+    ]
+  }
+}
