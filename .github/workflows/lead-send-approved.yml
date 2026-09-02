@@ -1,0 +1,28 @@
+name: Lead triage — send approved
+
+# Stage 2: send the intro emails a human approved with ✅ in #sales-bot-updates.
+#
+# This is the one workflow that runs with send_email permitted, so keep it
+# manual. Its scope is deliberately narrow: it does not research, does not
+# create records, and only sends drafts that lead-triage.yml already wrote and
+# a person already approved.
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_emails:
+        description: "Cap on emails sent this run"
+        required: false
+        type: string
+        default: "10"
+
+jobs:
+  send:
+    uses: ./.github/workflows/claude.yml
+    secrets: inherit
+    with:
+      prompt: "/lead-send-approved ${{ inputs.max_emails }}"
+      max_turns: "60"
+      timeout_minutes: 30
+      # The only profile that permits send_email.
+      settings_file: .github/claude/settings-sender.json

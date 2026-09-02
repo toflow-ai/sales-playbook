@@ -62,8 +62,8 @@ this workflow needs — posting, history, channel and user lookup — does.
 Claude can read toflow data and write to the CRM: update records, and create
 notes, tasks, and email drafts.
 
-These are denied in the workflow's `settings` block, independent of the
-`--allowedTools` list:
+These are denied by the permission profile in `.github/claude/`, independent of
+the `--allowedTools` list:
 
 - **Outbound messages** — `send_email`, `send_whatsapp_message`,
   `send_linkedin_message`, `send_inmail`, `send_connection_request`,
@@ -100,6 +100,68 @@ call rather than a workflow step, a run could finish without posting — the
 the job if `conversations_add_message` was never called.
 
 The full report is also written to `report.md` and uploaded as a run artifact.
+
+## The lead triage flow
+
+Two workflows, split so that no email leaves without a human seeing it.
+
+```
+#new-leads signup
+      │
+      ▼  lead-triage.yml          (send_email BLOCKED)
+  research → dedupe → create person/company/deal → draft email
+      │
+      ▼  posts one card per lead, top-level, to #sales-bot-updates
+      │
+      ▼  a human reacts ✅ (or ❌)
+      │
+      ▼  lead-send-approved.yml   (send_email PERMITTED)
+  verify recipient → send → react 📨
+```
+
+Both are `workflow_dispatch` only. Add a `schedule:` to stage 1 once it has
+proven itself; leave stage 2 manual.
+
+### Why the split
+
+Signup data is attacker-controlled — anyone can create a workspace with any
+name, company, and description. Stage 1 reads that text, researches it, and
+writes to the CRM, but cannot send anything. Only stage 2 can send, and it does
+nothing except send drafts that stage 1 wrote and a person approved.
+
+That is why there are two permission profiles in `.github/claude/`:
+
+| Profile | Denies | Used by |
+|---|---|---|
+| `settings-default.json` | 30 tools, all sends included | everything |
+| `settings-sender.json` | 29 — `send_email` permitted | `lead-send-approved.yml` only |
+
+The sender profile permits `send_email` and nothing else. WhatsApp, LinkedIn,
+InMail, deletions, and enrollment edits stay blocked: approving an email is not
+approval to message someone on another channel.
+
+### Triage state is Slack reactions
+
+`conversations_history` returns reactions as `name:count`. ✅ means handled, ❌
+rejected, 📨 (on a card) already sent.
+
+Two constraints this design has to respect:
+
+- **Reactions on thread replies are never returned** — `conversations_replies`
+  hard-codes them empty. Anything a human reacts to must be a top-level message,
+  which is why draft cards are posted individually rather than threaded.
+- **Reactions are counts, not identities.** You can see that someone approved,
+  never who. With a small private channel that is an acceptable trust model, but
+  it is not an audit trail.
+
+The bot token already carries `reactions:read` and `reactions:write`. The MCP
+server does not register write tools unless they are named, so
+`build-mcp-config.sh` sets `SLACK_MCP_ENABLED_TOOLS` explicitly.
+
+### Prerequisite
+
+`@salesbot` must be invited to `#new-leads` (`C0APE9SJM0E`). It is not a member
+by default and cannot read the channel without it.
 
 ## Adding a scheduled workflow
 
