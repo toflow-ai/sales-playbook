@@ -6,7 +6,7 @@ compatibility: Requires mcp__claude_ai_toflow_ai tools
 
 # Post-Demo Follow-Up Email
 
-A structured follow-up email sent after a product demo. The goal is to give the prospect a leave-behind that reinforces what they saw, shows how toflow compares to their current tool, highlights the AI layer, and makes it easy for them to share internally with the decision maker.
+A structured follow-up email sent after a product demo. The goal is to give the prospect a leave-behind that reinforces what they saw, highlights the AI layer, and makes it easy for them to share internally with the decision maker.
 
 ## How It Works
 
@@ -50,11 +50,11 @@ Accept one of: `deal_id`, `task_id`, or a person/company name.
 ```
 
 From the demo call notes, extract:
-- **Current tech stack** — especially the outreach tool (this becomes the competitor in the comparison section)
-- **Decision maker name** — who the prospect needs to share with internally (use in CTA)
-- **Features demoed** — to confirm what was shown
-- **AI tools they use** — e.g. Claude for Work, GPT (use in AI section personalization)
-- **Pain points / objections** — weave into comparison section
+- **Current tech stack**: especially the outreach tool
+- **Decision maker name**: who the prospect needs to share with internally (use in CTA)
+- **Features demoed**: to confirm what was shown
+- **AI tools they use**: e.g. Claude for Work, GPT (use in AI section personalization)
+- **Pain points / objections**: weave into the email body
 
 ### Step 2: Resolve Contact + Email Config
 
@@ -74,7 +74,7 @@ Follow the **5-section structure** below. Write in HTML for `draft_email`. Each 
 
 ### Subject line
 Short, benefit-oriented, references the demo or a specific topic discussed.
-Example: `toflow recap — demo highlights, vs. [Competitor] + pricing`
+Example: `toflow recap: demo highlights and pricing`
 
 ### Opening
 One line referencing the demo. Warm, not formal.
@@ -84,78 +84,45 @@ If DM name is not in notes, use: "so you can share it internally."
 
 ---
 
-### Section 1: What we demoed — end to end
+### Section 1: What we demoed, end to end
 
 Present as a **workflow journey** in this order. Do not reorder.
 
 ```html
-<p><strong>What we demoed — end to end:</strong></p>
+<p><strong>What we demoed, end to end:</strong></p>
 <ul>
-  <li><strong>Prospecting</strong> — build targeted lists directly inside toflow; no separate tool needed</li>
-  <li><strong>Enrichment</strong> — waterfall across multiple providers, ~80% email coverage; reduces dependence on [their enrichment tool if known, else ZoomInfo]</li>
-  <li><strong>Multichannel sequences</strong> — email, LinkedIn (connection + message + InMail), and WhatsApp in a single automated flow</li>
-  <li><strong>Unified inbox</strong> — all replies (including LinkedIn) in one place; team responds without sharing credentials</li>
-  <li><strong>Multi-account LinkedIn + advanced features</strong> — respond on behalf of teammates securely; ICP scoring (5 configurable vectors, scored out of 100) so you always know who to prioritize</li>
+  <li><strong>Prospecting</strong>: build targeted lists directly inside toflow; no separate tool needed</li>
+  <li><strong>Enrichment</strong>: waterfall across multiple providers, ~80% email coverage; reduces dependence on [their enrichment tool if known, else ZoomInfo]</li>
+  <li><strong>Multichannel sequences</strong>: email, LinkedIn (connection + message + InMail), and WhatsApp in a single automated flow</li>
+  <li><strong>Unified inbox</strong>: all replies (including LinkedIn) in one place; team responds without sharing credentials</li>
+  <li><strong>Multi-account LinkedIn and advanced features</strong>: respond on behalf of teammates securely; ICP scoring (5 configurable vectors, scored out of 100) so you always know who to prioritize</li>
 </ul>
 ```
 
-Adapt bullet copy based on what was actually demoed per the notes. Keep the flow order (prospecting → enrichment → sequences → inbox → advanced).
+Adapt bullet copy based on what was actually demoed per the notes. Keep the flow order (prospecting to enrichment to sequences to inbox to advanced).
 
 ---
 
-### Section 2: AI-native layer — where toflow goes beyond outreach
 
-Always include this section. Personalize to the prospect's AI stack if known from demo notes.
+### Section 3: Pricing
+
+Always use the pricing structure below. Fill in seat count and total based on what the user provides.
 
 ```html
-<p><strong>AI-native layer — where toflow goes beyond outreach:</strong></p>
-<p>toflow ships with 100+ MCP tools and deep AI agent integrations[, meaning your [role, e.g. rev ops engineer] can wire it directly into [their AI tool, e.g. Claude for Work] (which you're already using)]. Practical use cases:</p>
-<ul>
-  <li><strong>Prospecting</strong> — AI agents auto-research and qualify leads before they hit a sequence</li>
-  <li><strong>Enrichment</strong> — prompt-driven enrichment; ask "find me the VP of Finance at Series B fintechs in NYC" and get back a list</li>
-  <li><strong>Sequences</strong> — AI personalizes each touchpoint at send time based on live prospect data</li>
-  <li><strong>Prompt-based reply handling</strong> — agents draft responses to inbound replies in your voice, ready to review and send</li>
+<p style="margin: 0; margin-bottom: 8px; font-size: 14px; line-height: 1.6;"><strong>Pricing:</strong></p>
+<p style="margin: 0; margin-bottom: 8px; font-size: 14px; line-height: 1.6;"><strong>Seats:</strong> [N] seats x $60/seat = <strong>$[TOTAL]/month</strong></p>
+<ul style="margin: 0; margin-bottom: 8px; padding-left: 20px;">
+  <li style="margin-bottom: 6px; font-size: 14px;">Each seat includes up to 3 connected email accounts and 1 LinkedIn account</li>
+  <li style="margin-bottom: 6px; font-size: 14px;">Each seat comes with 1,000 credits/month (worth $10) for enrichment</li>
 </ul>
-```
-
-If their AI stack is known, add a closing line tying it in:
-> "Since [Company] already runs [their AI tool] with connected apps, this would plug in with minimal lift from your [their relevant role]."
-
-If AI stack is not known, omit the closing tie-in line.
-
----
-
-### Section 3: toflow vs. [Competitor] *(conditional)*
-
-**Only include this section if:**
-- The user explicitly mentions a competitor in their prompt, OR
-- A competitor / current outreach tool is referenced in the demo call notes
-
-If neither condition is met, skip this section entirely.
-
-When included, cover these five comparison points:
-
-```html
-<p><strong>toflow vs. [Competitor]:</strong></p>
-<ul>
-  <li><strong>Prospecting + enrichment</strong> — built into toflow; [Competitor] needs external tools for both</li>
-  <li><strong>ICP scoring</strong> — toflow only</li>
-  <li><strong>Channels</strong> — toflow adds WhatsApp; [Competitor] is [their channels, e.g. email + LinkedIn]</li>
-  <li><strong>AI agents + MCP</strong> — toflow only; [Competitor] has no AI execution layer</li>
-  <li><strong>All-in-one</strong> — toflow replaces 3–4 tools; [Competitor] is outreach-only</li>
+<p style="margin: 0; margin-bottom: 8px; font-size: 14px; line-height: 1.6;"><strong>Additional enrichment credits:</strong> $1 = 100 credits. Credits are consumed per action:</p>
+<ul style="margin: 0; margin-bottom: 16px; padding-left: 20px;">
+  <li style="margin-bottom: 6px; font-size: 14px;">Email Finder: 2 credits per contact ($0.02)</li>
+  <li style="margin-bottom: 6px; font-size: 14px;">Email Verifier: 0.5 credits per contact ($0.005)</li>
+  <li style="margin-bottom: 6px; font-size: 14px;">LinkedIn Profile: 0.5 credits per contact ($0.005)</li>
+  <li style="margin-bottom: 6px; font-size: 14px;">Sales Nav Profile: 1 credit per contact ($0.01)</li>
+  <li style="margin-bottom: 6px; font-size: 14px;">Phone Finder: 20 credits per contact ($0.20)</li>
 </ul>
-```
-
-Adjust competitor channel claim based on what is known. If competitor capabilities are unknown, keep the framing factual about toflow's strengths.
-
----
-
-### Section 4: Pricing
-
-Always use the placeholder — never invent or estimate pricing.
-
-```html
-<p><strong>Pricing:</strong> [PRICING]</p>
 ```
 
 ---
@@ -165,7 +132,7 @@ Always use the placeholder — never invent or estimate pricing.
 Single ask: 20-minute call. Name the decision maker if known from notes.
 
 ```html
-<p>Happy to get 20 minutes with you[and [DM name]] to walk through fit — what works this week?</p>
+<p>Happy to get 20 minutes to walk through fit and next steps. What works later this week or early next?</p>
 ```
 
 ---
@@ -216,18 +183,18 @@ After user approves:
 </ul>
 
 <!-- Bold labels in list items -->
-<strong>Label</strong> — description text
+<strong>Label</strong>: description text
 ```
 
-No markdown in HTML body. Do NOT add a signature — appended server-side automatically.
+No markdown in HTML body. Do NOT add a signature appended server-side automatically.
 
 ---
 
 ## What NOT to Do
 
-- Do not invent or estimate pricing — always use `[PRICING]`
+- Do not invent pricing outside the defined structure always use the seat/credit breakdown above
 - Do not reorder the demo journey sections (prospecting → enrichment → sequences → inbox → advanced)
 - Do not call `draft_email` before the user approves the draft
 - Do not use generic openers ("Hope this finds you well")
 - Do not include more than one CTA
-- Do not fabricate competitor capabilities you don't know — stick to toflow's strengths
+- Do not include a competitor comparison section
