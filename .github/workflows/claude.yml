@@ -76,6 +76,11 @@ jobs:
     timeout-minutes: ${{ inputs.timeout_minutes || 30 }}
     permissions:
       contents: read
+      # The action mints a GitHub App token over OIDC when github_token is
+      # absent. These workflows never call the GitHub API, so we hand it the
+      # ambient token instead — but keep id-token available in case a future
+      # caller does need the app.
+      id-token: write
     steps:
       - uses: actions/checkout@v5
 
@@ -93,6 +98,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
           prompt: |
             ${{ inputs.prompt }}
 
