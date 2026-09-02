@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "deny": [
+      "mcp__toflow__send_email",
+      "mcp__toflow__send_whatsapp_message",
+      "mcp__toflow__send_linkedin_message",
+      "mcp__toflow__send_inmail",
+      "mcp__toflow__send_connection_request",
+      "mcp__toflow__start_whatsapp_conversation",
+      "mcp__toflow__start_linkedin_conversation",
+      "mcp__toflow__reply_to_email",
+      "mcp__toflow__forward_email",
+      "mcp__toflow__enroll_in_sequence",
+      "mcp__toflow__retry_enrollment",
+      "mcp__toflow__update_enrollment",
+      "mcp__toflow__set_enrollment_node_content",
+      "mcp__toflow__resolve_invalid_enrollments",
+      "mcp__toflow__set_email_signature",
+      "mcp__toflow__set_primary_account",
+      "mcp__toflow__delete_person",
+      "mcp__toflow__delete_company",
+      "mcp__toflow__delete_deal",
+      "mcp__toflow__delete_note",
+      "mcp__toflow__delete_task",
+      "mcp__toflow__delete_call",
+      "mcp__toflow__delete_draft",
+      "mcp__toflow__delete_list",
+      "mcp__toflow__delete_attribute",
+      "mcp__toflow__remove_from_list",
+      "mcp__toflow__remove_person_from_deal",
+      "mcp__toflow__bulk_enrich_emails",
+      "mcp__toflow__bulk_enrich_phones",
+      "mcp__toflow__bulk_enrich_list"
+    ]
+  }
+}

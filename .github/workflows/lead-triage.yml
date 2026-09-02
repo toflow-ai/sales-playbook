@@ -1,0 +1,35 @@
+name: Lead triage
+
+# Stage 1 of the two-stage lead flow: research untriaged #new-leads signups,
+# create the toflow records and deal, and DRAFT an intro email. Nothing is sent
+# here — drafts are posted to #sales-bot-updates for a human to approve with ✅,
+# and lead-send-approved.yml sends them afterwards.
+#
+# Manual dispatch only for now. Add a `schedule:` trigger once it has proven
+# itself; signups arrive faster than they get triaged, so a daily cron is the
+# eventual shape.
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_leads:
+        description: "How many untriaged leads to work this run"
+        required: false
+        type: string
+        default: "5"
+      max_turns:
+        description: "Turn budget. Research runs ~8-10 turns per lead."
+        required: false
+        type: string
+        default: "80"
+
+jobs:
+  triage:
+    uses: ./.github/workflows/claude.yml
+    secrets: inherit
+    with:
+      prompt: "/lead-triage ${{ inputs.max_leads }}"
+      max_turns: ${{ inputs.max_turns }}
+      timeout_minutes: 45
+      # Default profile — send_email stays blocked.
+      settings_file: .github/claude/settings-default.json
