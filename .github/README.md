@@ -68,12 +68,20 @@ These are denied in the workflow's `settings` block, independent of the
 - **Outbound messages** — `send_email`, `send_whatsapp_message`,
   `send_linkedin_message`, `send_inmail`, `send_connection_request`,
   `reply_to_email`, `forward_email`, and the `start_*_conversation` tools
-- **Sequence enrollment** — `enroll_in_sequence`, `retry_enrollment`
+- **Live sequence enrollments** — `enroll_in_sequence`, `retry_enrollment`,
+  `update_enrollment`, `set_enrollment_node_content`,
+  `resolve_invalid_enrollments`. An enrollment is queued outbound mail, so
+  editing one is a way of sending without calling a `send_*` tool
+- **Sending-account config** — `set_email_signature`, `set_primary_account`,
+  which change what every outgoing email looks like and who it comes from
 - **Deletions** — every `delete_*`, plus `remove_from_list` and
   `remove_person_from_deal`
 - **Credit-burning bulk enrichment** — `bulk_enrich_*`
 
 `Bash` is not in the allowed tool list either.
+
+The list was verified against `tools/list` on the live server — every denied
+name exists, so none of them are silently no-ops from a typo.
 
 This matters because these runs read notes, emails, and LinkedIn content —
 text that people outside your company can influence — and then act with your
