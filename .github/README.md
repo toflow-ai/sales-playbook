@@ -44,9 +44,23 @@ federation via `anthropic_federation_rule_id`.
 
 ### Slack app setup
 
-1. Create a Slack app → **OAuth & Permissions** → add bot scopes:
-   `chat:write`, `channels:read`, `channels:history`, `users:read`.
-   Add `groups:read` and `groups:history` for private channels.
+1. Create a Slack app → **OAuth & Permissions** → add these bot scopes:
+
+   | Scope | Why |
+   |---|---|
+   | `channels:read`, `groups:read`, `im:read`, `mpim:read` | **required to start at all** — see below |
+   | `channels:history`, `groups:history` | reading messages and their reactions |
+   | `chat:write` | posting |
+   | `reactions:read`, `reactions:write` | triage state (✅ / ❌ / 📨) |
+   | `users:read` | resolving user IDs to names |
+
+   The four `*:read` scopes are not optional. On startup the server caches the
+   channel collection with a single `conversations.list` call covering all four
+   conversation types at once (`AllChanTypes` = `mpim, im, public_channel,
+   private_channel`). Missing any one of them fails that call with
+   `missing_scope`, and the server treats it as fatal and exits — which the
+   client sees only as `slack (CONNECTION_CLOSED)`, with no mention of scopes.
+   This happens even if your workflow never lists channels.
 2. Install to the workspace and copy the **Bot User OAuth Token** (`xoxb-…`).
 3. Invite the bot to the target channel: `/invite @yourbot`.
 4. Copy the channel ID from the channel's context menu → *View channel details*.
@@ -193,5 +207,13 @@ Scheduled runs only fire from the default branch.
   returning 401 means the key is bad.
 - **"Claude never called conversations_add_message"** — usually the bot is not
   in the channel, or `SLACK_CHANNEL` holds a `#name` instead of an ID.
+- **`slack (CONNECTION_CLOSED)` and no `mcp__slack__*` tools** — almost always a
+  missing read scope, not a bad token or a bad release. The server authenticates
+  successfully first, then dies caching channels. The real error never reaches
+  the MCP client; reproduce the launch by hand to see it:
+
+  ```
+  SLACK_MCP_XOXB_TOKEN=xoxb-... npx -y slack-mcp-server@latest --transport stdio
+  ```
 - **Hit the turn limit** — raise `max_turns`; research-heavy skills need more
   than the default 40.
