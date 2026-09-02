@@ -25,6 +25,12 @@ on:
 
 jobs:
   triage:
+    # A reusable workflow cannot request more than its caller grants, so these
+    # must match the permissions claude.yml declares or the run fails at startup
+    # with no log.
+    permissions:
+      contents: read
+      id-token: write
     uses: ./.github/workflows/claude.yml
     secrets: inherit
     with:
