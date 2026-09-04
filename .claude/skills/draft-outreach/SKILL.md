@@ -231,6 +231,8 @@ Update person record: update_record(resource_type=person, id=person_id,
 3. **One CTA** — don't offer 3 options. One clear ask.
 4. **Follow agent_instructions** from inbox_manager_config strictly.
 5. **No signature** — appended server-side automatically.
+6. **NEVER use em dashes (—) in email or message copy.** Not in the body, not in the subject line. Rewrite as two sentences, or use a comma, colon, or full stop. This applies to `&mdash;` in HTML bodies as well.
+7. **Do not mirror the prospect's own positioning back at them.** Never quote or paraphrase their website copy, tagline, or marketing claims ("You say you don't do ads, so..."). Research informs which question you ask; it does not become the content of the message.
 
 ## What NOT to Do
 

@@ -87,6 +87,7 @@ For each step, draft content using template variables:
 - Use `{{person.first_name}}`, `{{company.name}}` etc.
 - No signature (appended server-side)
 - Follow `inbox_manager_config()` agent_instructions
+- **NEVER use em dashes (—)** in subject or body, including the `&mdash;` entity. Rewrite as two sentences, or use a comma, colon, or full stop. Applies to LinkedIn and WhatsApp copy below too.
 
 **LinkedIn connection request** — <300 chars, genuine, no pitch
 

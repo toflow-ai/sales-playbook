@@ -188,6 +188,8 @@ After user approves:
 
 No markdown in HTML body. Do NOT add a signature appended server-side automatically.
 
+**NEVER use em dashes (—) anywhere in the email**, including the subject line and any `&mdash;` HTML entity. Rewrite as two sentences, or use a comma, colon, or full stop.
+
 ---
 
 ## What NOT to Do
