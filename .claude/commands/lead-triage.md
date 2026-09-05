@@ -60,26 +60,42 @@ list_records(resource_type="person", search="<full signup email>")
 
 - Person exists and is already on a deal → **skip the lead entirely**, it is
   handled. Move on — no card, no summary line beyond the skip count.
-- Person exists, no deal → keep the person, continue from Step 4.
-- No person → continue.
+- Person exists, no deal → keep the person, continue to the company check
+  below **before** creating anything.
+- No person → continue to the company check below.
 
-Then check the company:
+Always run the company check next, regardless of which branch above applied —
+skipping it is what causes duplicate deals when a second person from an
+already-active company signs up.
 
 ```
 list_records(resource_type="company", search="<company name or email domain>")
 ```
 
 If a **deal already exists for that company**, do not open a second one. Add the
-signup person to the existing deal with `add_person_to_deal` — a second signup
-from the same company is a strength signal, not a new opportunity. Say so in the
-Slack card.
+signup person to the existing deal with `add_person_to_deal`, then
+`create_note` on that deal recording the new signup — date, workspace/slug,
+the person's name/title (LinkedIn-verified when available), and a one-line
+summary of their research findings (including any qualification concern or
+LinkedIn mismatch). A second signup from the same company
+is a strength signal, not a new opportunity, but it should still be visible on
+the deal record itself, not only in the Slack card. Do not update the deal's
+own fields (description, value, stage) for this — use the note, since
+`update_record` is not a partial update and resending it risks clobbering
+fields you didn't mean to touch.
 
 ## Step 3 — Research the lead
 
 Budget roughly 5-6 tool calls per lead; this is qualification, not a dossier.
 
-1. `enrich_person_by_linkedin` if the post carries a LinkedIn URL, else
-   `enrich_person_email` on the signup address.
+1. `enrich_person_by_linkedin` if the post carries a LinkedIn URL — LinkedIn is
+   the most reliable source available here, so use it whenever present, even
+   if the signup already gave a name/title. Compare the returned title,
+   current employer, and headcount against what the signup claimed. Capture
+   the verified title, company name, domain, and headcount for Step 4, and
+   note any mismatch (e.g. signup claims a different employer than LinkedIn
+   shows) as a qualification concern. Fall back to `enrich_person_email` on
+   the signup address only when there's no LinkedIn URL.
 2. Company website and description — `get_company` if the record exists,
    otherwise `WebSearch` / `WebFetch` on the domain.
 3. `mcp__ai-ark__company_search` for firmographics when the domain is unclear.
@@ -112,12 +128,19 @@ draft the email — but say plainly that it needs a human read.
 Call `record_schema(resource_type=...)` before each create; do not guess field
 names.
 
-**Company** (if missing) — name, domain, description from research.
+**Company** (if missing) — name, domain, description from research, preferring
+LinkedIn-verified data over signup claims when they conflict. If the company
+record **already exists** and LinkedIn verification turned up a correction
+(wrong domain, stale description, different headcount), `update_record` it —
+call `get_company` first and resend the full record with the corrected
+field(s), since `update_record` is not a partial update and omitted fields
+get nulled.
 
 **Person** (if missing) — real name when known. When it is not, use
 `Firstname (Company)` derived from the email local part. Link to the company.
 
-**Deal** (unless attaching to an existing one):
+**Deal** (only if Step 2's company check found none for this company —
+otherwise `add_person_to_deal` onto the existing deal and stop here):
 
 | Field | Value |
 |---|---|
@@ -126,7 +149,7 @@ names.
 | DEAL SOURCE | `INBOUND` |
 | Value | `0` |
 | Expected Close Date | last day of the current month |
-| Description | opens with `Self-serve signup <date> (Workspace <n>, slug "<slug>")`, then research findings and any qualification concern |
+| Description | opens with `Self-serve signup <date> (Workspace <n>, slug "<slug>")`, then research findings — including LinkedIn-verified title/company/headcount where available — and any qualification concern |
 
 Description fields cap at **1000 characters** — trim rather than let a write
 fail. Then `add_person_to_deal`.
