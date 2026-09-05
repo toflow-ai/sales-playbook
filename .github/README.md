@@ -23,7 +23,7 @@ Slack app_mention event
   POST /repos/toflow-ai/sales-playbook/actions/workflows/claude.yml/dispatches
       │
       ▼  claude.yml (workflow_dispatch)
-  runs the prompt, replies in the mention's thread
+  reacts :eyes: on the mention, runs the prompt, replies in its thread
 ```
 
 ### Slack app config
@@ -65,6 +65,10 @@ Slack app_mention event
    - `slack_channel`: `event.channel`
    - `thread_ts`: `event.thread_ts` if present (mention was inside a thread),
      else `event.ts` (mention was top-level — reply in a new thread on it).
+   - `message_ts`: `event.ts` — always the mention's own ts, unlike
+     `thread_ts` above. Claude reacts with `:eyes:` on this message as its
+     first action, so it must point at the message someone actually mentioned
+     the bot on, not the thread parent.
    - `settings_file`: this is the one security-relevant decision n8n makes,
      and it's a plain equality check, not text parsing —
      `event.channel == "C0APE9SJM0E" && event.thread_ts is present` (the raw
@@ -82,7 +86,7 @@ Slack app_mention event
    Accept: application/vnd.github+json
    Content-Type: application/json
 
-   { "ref": "main", "inputs": { "prompt": "...", "slack_channel": "...", "thread_ts": "...", "settings_file": "..." } }
+   { "ref": "main", "inputs": { "prompt": "...", "slack_channel": "...", "thread_ts": "...", "message_ts": "...", "settings_file": "..." } }
    ```
    The PAT needs `actions: write` + `contents: read` on this repo (a
    fine-grained token scoped to just `toflow-ai/sales-playbook` is enough —
@@ -151,6 +155,7 @@ federation via `anthropic_federation_rule_id`.
    | `chat:write` | posting |
    | `app_mentions:read` | receiving `@salesbot` mentions |
    | `users:read` | resolving user IDs to names |
+   | `reactions:write` | the `:eyes:` ack reaction on the triggering mention |
 
    The four `*:read` scopes are not optional. On startup the server caches the
    channel collection with a single `conversations.list` call covering all four
@@ -298,8 +303,11 @@ The replacement is simpler and ties directly to identity:
   looks for its own prior `Sent to <email> at <time>` reply before sending
   again.
 
-This means `SLACK_MCP_ENABLED_TOOLS` no longer needs `reactions_add`, and the
-bot token doesn't need `reactions:read`/`reactions:write` for this flow at all.
+None of this needs `reactions:read`, or reactions as a state mechanism at all
+— `reactions_add` is still in `SLACK_MCP_ENABLED_TOOLS`, but only for the
+`:eyes:` ack on the triggering mention (see [Triggering from an @salesbot
+mention](#triggering-from-an-salesbot-mention-n8n)), which is a courtesy
+signal, not something any command reads back.
 
 ### Prerequisite
 

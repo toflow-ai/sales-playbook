@@ -25,6 +25,11 @@ on:
         required: false
         type: string
         default: ""
+      message_ts:
+        description: "ts of the Slack message that triggered this run (the @salesbot mention itself). Blank for a manual Actions run. When set, Claude reacts with :eyes: on it before starting work."
+        required: false
+        type: string
+        default: ""
       model:
         required: false
         type: choice
@@ -53,6 +58,10 @@ on:
         type: string
         default: ""
       thread_ts:
+        required: false
+        type: string
+        default: ""
+      message_ts:
         required: false
         type: string
         default: ""
@@ -125,6 +134,16 @@ jobs:
             The skills and commands in `.claude/` are available and their golden
             rules still apply — in particular, call the relevant schema or guide
             tool before you create, update, or filter toflow records.
+            ${{ inputs.message_ts != '' && format('
+            ## Acknowledge first
+
+            Before anything else — before research, before reading the thread
+            — call `reactions_add(channel="{0}", timestamp="{1}", name="eyes")`
+            on the message that triggered this run. That is the only signal
+            the person in Slack gets that the mention was picked up, so it
+            comes first, ahead of every other step below. If the reaction call
+            fails (e.g. already reacted), do not retry or let it block the
+            rest of the run.', inputs.slack_channel || secrets.SLACK_CHANNEL, inputs.message_ts) || '' }}
 
             ## Deliverables
 

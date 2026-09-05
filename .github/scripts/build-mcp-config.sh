@@ -49,9 +49,12 @@ if [[ -n "${SLACK_MCP_XOXB_TOKEN:-}" ]]; then
   # CRM content can't reach the rest of the workspace. Channel IDs only (C…) —
   # the allowlist does not match #names.
   # Write tools are unregistered unless named in SLACK_MCP_ENABLED_TOOLS.
+  # reactions_add is used to mark a run as picked up (an eyes reaction on the
+  # triggering mention); it isn't gated by SLACK_MCP_ADD_MESSAGE_TOOL since
+  # that only controls posting new messages.
   # channels_list is omitted because the bot token lacks channels:read, and
   # conversations_search_messages does not work with bot tokens at all.
-  enabled="conversations_history,conversations_replies,conversations_add_message,users_search"
+  enabled="conversations_history,conversations_replies,conversations_add_message,reactions_add,users_search"
   add slack "$(jq -n \
       --arg t "$SLACK_MCP_XOXB_TOKEN" \
       --arg c "${SLACK_MCP_ADD_MESSAGE_TOOL:-}" \
