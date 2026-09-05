@@ -170,7 +170,9 @@ Nothing else marks the lead as handled — that's Step 2's job on the next run.
 ## Step 7 — Close out
 
 Post a final top-level summary in `#new-leads`: how many leads worked, how many
-skipped as duplicates, how many flagged. Write the same detail to `report.md`.
+skipped as duplicates, how many flagged. The run's detailed execution log
+(per `claude.yml`'s deliverables) already covers the full per-lead detail in
+`#sales-bot-updates` — this summary is just the channel-local wrap-up.
 
 ---
 

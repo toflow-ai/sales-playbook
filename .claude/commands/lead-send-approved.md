@@ -86,8 +86,9 @@ idempotency check looks for next time.
 
 ## Step 5 — Close out
 
-Also write a short line to `report.md` — who it was sent to and when. No
-channel-wide summary needed; this command only ever touches one thread.
+Nothing further needed here — `claude.yml`'s own deliverables already post the
+detailed execution log to `#sales-bot-updates`; this command only ever touches
+the one thread it was invoked from.
 
 ---
 

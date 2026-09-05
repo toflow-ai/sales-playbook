@@ -197,17 +197,28 @@ credentials. Keeping "can send" and "can delete" off the table is most of the
 defense; the prompt also tells Claude to treat record content as data, never as
 instructions. Widen the allowlist deliberately, not by default.
 
-Posting is scoped to one channel per run via `SLACK_MCP_ADD_MESSAGE_TOOL`, so
-an injected instruction cannot turn the bot loose on the workspace.
+Posting is scoped to the run's own destination channel plus
+`#sales-bot-updates` via `SLACK_MCP_ADD_MESSAGE_TOOL` (a comma-separated
+allowlist) — nowhere else, so an injected instruction cannot turn the bot
+loose on the workspace.
 
 ## Delivery
 
-Claude posts to Slack itself, through the MCP server. Because that is a tool
-call rather than a workflow step, a run could finish without posting — the
-**Check the Slack post landed** step reads the execution transcript and fails
-the job if `conversations_add_message` was never called.
+Claude posts to Slack itself, through the MCP server — twice, per its
+Deliverables instructions: a detailed execution log to `#sales-bot-updates`
+(`C0BUL9U9CFK`) first, then a short reply at the run's actual destination
+(the mention's thread, or the target channel for a manual/scheduled run)
+linking back to that log via its permalink. When the destination already *is*
+`#sales-bot-updates`, the one log post covers both and there's no duplicate.
 
-The full report is also written to `report.md` and uploaded as a run artifact.
+There's no `report.md` artifact any more — `#sales-bot-updates` is the
+execution history now, and it's readable without downloading anything from
+Actions.
+
+Because both posts are tool calls rather than workflow steps, a run could
+finish without posting at all — the **Check the Slack post landed** step
+reads the execution transcript and fails the job if
+`conversations_add_message` was never called at least once.
 
 ## The lead triage flow
 
