@@ -1,5 +1,5 @@
 ---
-description: Triage new self-serve signups from Slack #new-leads — research each lead, create the missing toflow records and deal, and draft an intro email for approval
+description: Triage new self-serve signups from Slack #new-leads — research each lead, create the missing toflow records and deal, and draft an intro email for approval, posted as a thread reply on the signup
 argument-hint: "<optional: max leads to work, default 5>"
 ---
 
@@ -7,8 +7,8 @@ argument-hint: "<optional: max leads to work, default 5>"
 
 Work the untriaged backlog in Slack `#new-leads`. For each signup: research it,
 create whatever toflow records are missing, open or extend a deal, and **draft**
-an introductory email. Drafts are posted to Slack for a human to approve — this
-command never sends.
+an introductory email. The draft is posted as a **thread reply** under the
+signup for a human to approve — this command never sends.
 
 Max leads this run: $ARGUMENTS (default 5, newest first)
 
@@ -19,21 +19,28 @@ Max leads this run: $ARGUMENTS (default 5, newest first)
 | Thing | Value |
 |---|---|
 | Source channel | `#new-leads` = `C0APE9SJM0E` |
-| Review channel | `#sales-bot-updates` = `C0BUL9U9CFK` |
 | Pipeline | Sales Pipeline = `5` |
 | Stage for new signups | On Trial = `133` |
 
+Everything happens in `#new-leads` now — there is no separate review channel.
+The research summary, the draft email, and its approval reactions all live on
+the thread reply under the original signup post.
+
 ## Triage state lives in Slack reactions
 
-`conversations_history` returns reactions as `name:count`, e.g.
-`white_check_mark:1`.
+`conversations_history` returns reactions as `name:count` for **top-level**
+messages only, e.g. `white_check_mark:1`.
 
-- ✅ `white_check_mark` — already handled, **skip**
-- ❌ `x` — rejected, **skip**
+- ✅ `white_check_mark` on the signup post — already triaged (a draft has been
+  posted in its thread), **skip**
+- ❌ `x` on the signup post — rejected, **skip**
 - no reaction — untriaged, work it
 
-Reactions are counts only; you cannot see who reacted, and reactions on thread
-replies are never returned. Treat any reaction as "someone handled this".
+Reactions are counts only; you cannot see who reacted. `conversations_history`
+never returns thread replies at all — that's why the "already triaged" marker
+lives on the **parent** post, not the reply. `/lead-send-approved` reads the
+reply's own reactions via `conversations_replies`, which (unlike
+`conversations_history`) does return them.
 
 ---
 
@@ -44,8 +51,8 @@ conversations_history(channel_id="C0APE9SJM0E", limit=50)
 ```
 
 Keep only "New Workspace Created" posts with no reactions. Take the newest N
-(default 5). If there are none, post "No untriaged leads" to the review channel
-and stop — that is a successful run, not a failure.
+(default 5). If there are none, post "No untriaged leads" as a top-level
+message in `#new-leads` and stop — that is a successful run, not a failure.
 
 From each post extract: signup email, person name (if given), company name,
 workspace number, slug, and signup date.
@@ -128,11 +135,12 @@ The draft should be short (under 150 words), reference something specific from
 your research rather than generic praise, acknowledge that they signed up and
 offer a concrete next step. No signature — toflow appends it server-side.
 
-## Step 6 — Post one card per lead, top-level
+## Step 6 — Post the card as a thread reply
 
-Each lead gets its **own top-level message** in `C0BUL9U9CFK`. Do not thread
-them — reactions on thread replies cannot be read back, so a threaded card
-could never be approved.
+Each lead's card is a **reply in the thread of its own signup post** in
+`C0APE9SJM0E` (`thread_ts` = the signup message's `ts`). This is the message
+`/lead-send-approved` will later look for and react on — it must be the
+*bot's* reply, and it must contain a draft intro email so it's unambiguous.
 
 ```
 *<Company> — <Person>*  ·  <title>, <headcount>
@@ -147,16 +155,17 @@ could never be approved.
 > <subject>
 > <body>
 
-React ✅ to send this email, ❌ to reject it.
+React ✅ on this reply to send this email, ❌ to reject it.
 ```
 
-Then react ✅ on the original `#new-leads` post with `reactions_add` so the lead
-is not picked up again.
+Then react ✅ on the **top-level signup post** (not the reply) with
+`reactions_add` so `conversations_history` shows it as triaged and the lead is
+not pulled into Step 1 again next run.
 
 ## Step 7 — Close out
 
-Post a final top-level summary: how many leads worked, how many skipped as
-duplicates, how many flagged. Write the same detail to `report.md`.
+Post a final top-level summary in `#new-leads`: how many leads worked, how many
+skipped as duplicates, how many flagged. Write the same detail to `report.md`.
 
 ---
 

@@ -125,12 +125,13 @@ Two workflows, split so that no email leaves without a human seeing it.
       ▼  lead-triage.yml          (send_email BLOCKED)
   research → dedupe → create person/company/deal → draft email
       │
-      ▼  posts one card per lead, top-level, to #sales-bot-updates
+      ▼  posts the card as a thread reply on the signup post,
+         reacts ✅ on the signup post itself ("triaged")
       │
-      ▼  a human reacts ✅ (or ❌)
+      ▼  a human reacts ✅ (or ❌) on the reply
       │
       ▼  lead-send-approved.yml   (send_email PERMITTED)
-  verify recipient → send → react 📨
+  verify recipient → send → react 📨 on the reply
 ```
 
 Both are `workflow_dispatch` only. Add a `schedule:` to stage 1 once it has
@@ -156,14 +157,23 @@ approval to message someone on another channel.
 
 ### Triage state is Slack reactions
 
-`conversations_history` returns reactions as `name:count`. ✅ means handled, ❌
-rejected, 📨 (on a card) already sent.
+Both `conversations_history` and `conversations_replies` return reactions as
+`name:count`. ✅ means handled, ❌ rejected, 📨 (on a reply) already sent.
 
+Everything lives in `#new-leads` now — there is no separate review channel.
 Two constraints this design has to respect:
 
-- **Reactions on thread replies are never returned** — `conversations_replies`
-  hard-codes them empty. Anything a human reacts to must be a top-level message,
-  which is why draft cards are posted individually rather than threaded.
+- **`conversations_history` never returns thread replies at all** (not even
+  their existence, let alone reactions on them). It only sees top-level
+  messages, which is why the "already triaged" marker has to live on the
+  **signup post itself** — `/lead-triage` reacts ✅ there once it has posted a
+  draft in its thread, so the next run's channel scan skips it.
+- **The draft card's own approval state lives on the reply**, and reading it
+  back requires `conversations_replies(thread_ts=...)` on that specific
+  thread — it does correctly return each reply's reactions field (this MCP
+  server builds `conversations_history` and `conversations_replies` from the
+  same code path). `/lead-send-approved` uses the parent's ✅ just to shortlist
+  candidate threads, then fetches each one to check the reply's own reactions.
 - **Reactions are counts, not identities.** You can see that someone approved,
   never who. With a small private channel that is an acceptable trust model, but
   it is not an audit trail.
