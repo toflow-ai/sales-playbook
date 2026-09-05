@@ -44,41 +44,42 @@ Slack app_mention event
 2. **Filter** — `event.type == "app_mention"` (Slack redelivers on retries
    and also fires `message` events in the same channel; ignore both).
 3. **Transform** — build the dispatch payload:
-   - `text`: `event.text` with the leading `<@U…> ` bot mention stripped.
+   - `prompt`: `event.text` with the leading `<@U…> ` bot mention stripped —
+     passed straight through, freeform, no keyword parsing. It reaches Claude
+     labeled as Slack-sourced, untrusted input (the `thread_ts`-gated boundary
+     language already in `claude.yml`'s prompt), and Claude itself decides —
+     from that text plus the thread history it reads via `conversations_replies`
+     — what's actually being asked, including whether a message like "send it"
+     means finish sending a `/lead-triage` draft.
    - `slack_channel`: `event.channel`
    - `thread_ts`: `event.thread_ts` if present (mention was inside a thread),
      else `event.ts` (mention was top-level — reply in a new thread on it).
-4. **Route on `text`** — this is the one place n8n makes a security-relevant
-   decision, so keep it a simple, explicit string match rather than anything
-   fuzzier:
-   - If `text` (case-insensitively, trimmed) starts with
-     `/lead-send-approved` → dispatch **`lead-send-approved.yml`**, inputs
-     `{ thread_ts, slack_channel }`. No `prompt` input on this workflow — it's
-     hardcoded to `/lead-send-approved` in the workflow file, so n8n forwarding
-     arbitrary Slack text can never smuggle a different prompt into the one
-     workflow that's allowed to send.
-   - Otherwise → dispatch **`claude.yml`**, inputs
-     `{ prompt: text, slack_channel, thread_ts }` — freeform passthrough,
-     always under the default (non-sending) permission profile. It reaches
-     Claude labeled as Slack-sourced, untrusted input (the `thread_ts`-gated
-     boundary language already in `claude.yml`'s prompt).
-   The permission profile a run gets is therefore controlled entirely by
-   *which workflow file* n8n dispatches to, never by an input value n8n sets —
-   n8n forwarding the wrong `settings_file` string is not a way to accidentally
-   grant `send_email`.
-5. **HTTP Request node** — call the GitHub API with whichever workflow file
-   Step 4 selected:
+   - `settings_file`: this is the one security-relevant decision n8n makes,
+     and it's a plain equality check, not text parsing —
+     `event.channel == "C0APE9SJM0E" && thread_ts is present` →
+     `.github/claude/settings-sender.json`, else
+     `.github/claude/settings-default.json`. In other words: only a *reply
+     inside an existing thread in `#new-leads`* ever runs with `send_email`
+     available at all — a fresh top-level mention, or a mention in any other
+     channel, never can, regardless of what the message says.
+4. **HTTP Request node** — call the GitHub API:
    ```
-   POST https://api.github.com/repos/toflow-ai/sales-playbook/actions/workflows/<claude.yml|lead-send-approved.yml>/dispatches
+   POST https://api.github.com/repos/toflow-ai/sales-playbook/actions/workflows/claude.yml/dispatches
    Authorization: Bearer <GitHub PAT>
    Accept: application/vnd.github+json
    Content-Type: application/json
 
-   { "ref": "main", "inputs": { ... as built in Step 4 ... } }
+   { "ref": "main", "inputs": { "prompt": "...", "slack_channel": "...", "thread_ts": "...", "settings_file": "..." } }
    ```
    The PAT needs `actions: write` + `contents: read` on this repo (a
    fine-grained token scoped to just `toflow-ai/sales-playbook` is enough —
    store it as an n8n credential, not inline in the workflow).
+
+Having `settings_file` come from a channel-ID equality check rather than a
+GitHub-side string match on the message means n8n can never be tricked by
+message content into granting `send_email` — the only lever is which channel
+and thread the mention landed in, and that's Slack's own routing, not
+attacker-controlled text.
 
 `workflow_dispatch` is fire-and-forget: the API call returns `204` with no run
 ID. If you need to correlate a dispatch back to a specific Slack event, add a
@@ -199,46 +200,53 @@ The full report is also written to `report.md` and uploaded as a run artifact.
 
 ## The lead triage flow
 
-Two workflows, split so that no email leaves without a human seeing it.
+One workflow (`claude.yml`) runs both stages — what changes between them is
+the prompt and the permission profile, not the workflow file.
 
 ```
 #new-leads signup
       │
-      ▼  lead-triage.yml          (send_email BLOCKED)
+      ▼  claude.yml, prompt "/lead-triage", settings-default.json (send_email BLOCKED)
   research → dedupe → create person/company/deal → draft email
       │
       ▼  posts the card as a thread reply on the signup post
       │
-      ▼  a human reads the card and replies in that thread:
-         "@salesbot /lead-send-approved"
+      ▼  a human replies in that thread — "send it", or the
+         literal "/lead-send-approved", either works
       │
-      ▼  lead-send-approved.yml   (send_email PERMITTED)
-  verify recipient → send → confirm in the same thread
+      ▼  n8n sees channel=#new-leads + thread_ts set → dispatches
+         claude.yml again, this time with settings-sender.json (send_email PERMITTED)
+  Claude reads the thread, recognizes the send request, follows
+  .claude/commands/lead-send-approved.md → verify recipient → send → confirm in-thread
 ```
 
-Both are `workflow_dispatch` only (stage 2 additionally arrives via an
-`@salesbot` mention through n8n — see
-[Triggering from an @salesbot mention](#triggering-from-an-salesbot-mention-n8n)).
-Add a `schedule:` to stage 1 once it has proven itself; leave stage 2's manual
-Actions-tab entry point as-is regardless.
+Stage 1 is `workflow_dispatch` only for now (`prompt: "/lead-triage <N>"`
+from the Actions tab, or a future `schedule:` caller — see [Adding a scheduled
+workflow](#adding-a-scheduled-workflow)). Stage 2 only ever arrives via an
+`@salesbot` mention through n8n — see [Triggering from an @salesbot
+mention](#triggering-from-an-salesbot-mention-n8n) — there is no manual
+Actions-tab entry point for it any more, since it needs a specific thread to
+act on.
 
-### Why the split
+### Why the permission split still exists
 
 Signup data is attacker-controlled — anyone can create a workspace with any
-name, company, and description. Stage 1 reads that text, researches it, and
-writes to the CRM, but cannot send anything. Only stage 2 can send, and it does
-nothing except send drafts that stage 1 wrote and a person approved.
+name, company, and description. `/lead-triage` reads that text, researches it,
+and writes to the CRM, but the run it's in never has `send_email` available.
+Sending only ever happens in a run where n8n decided, from the Slack event's
+channel and thread alone (not from message content), to grant it.
 
 That is why there are two permission profiles in `.github/claude/`:
 
-| Profile | Denies | Used by |
+| Profile | Denies | Granted when (per n8n's rule, see above) |
 |---|---|---|
-| `settings-default.json` | 30 tools, all sends included | everything |
-| `settings-sender.json` | 29 — `send_email` permitted | `lead-send-approved.yml` only |
+| `settings-default.json` | 30 tools, all sends included | everything except the row below |
+| `settings-sender.json` | 29 — `send_email` permitted | mention is a reply inside an existing `#new-leads` thread |
 
 The sender profile permits `send_email` and nothing else. WhatsApp, LinkedIn,
-InMail, deletions, and enrollment edits stay blocked: approving an email is not
-approval to message someone on another channel.
+InMail, deletions, and enrollment edits stay blocked regardless of profile:
+being allowed to send an email is not being allowed to message someone on
+another channel.
 
 ### Triage state lives in toflow and thread text, not Slack reactions
 
@@ -254,10 +262,12 @@ The replacement is simpler and ties directly to identity:
   checks whether a person + deal already exist for the signup (Step 2) and
   skips if so. Re-scanning the same signup post on a later run is harmless.
 - **"Approved to send"** is a named human replying inside that lead's own
-  thread with `@salesbot /lead-send-approved`. That Slack mention *is* the
-  authorization — see [Triggering from an @salesbot
-  mention](#triggering-from-an-salesbot-mention-n8n). There is nothing to scan
-  for in advance; the mention itself carries the thread to act on.
+  thread asking for the draft to be sent — "send it" and the literal
+  `/lead-send-approved` both work, since Claude reads the thread and decides
+  intent itself (see [Triggering from an @salesbot
+  mention](#triggering-from-an-salesbot-mention-n8n)). There is nothing to scan
+  for in advance; the mention itself carries the thread to act on, and n8n's
+  channel+thread check is what makes `send_email` available for that run at all.
 - **"Already sent"** is answered by reading the thread: `/lead-send-approved`
   looks for its own prior `Sent to <email> at <time>` reply before sending
   again.

@@ -1,21 +1,25 @@
 ---
-description: Send the intro email drafted by /lead-triage for one lead — invoked by a human replying "@salesbot /lead-send-approved" in that lead's thread in #new-leads
+description: Send the intro email drafted by /lead-triage for one lead — apply this whenever a message inside that lead's own thread in #new-leads is asking for the draft to be sent
 argument-hint: (none — operates on the thread this run was mentioned in)
 ---
 
 # /lead-send-approved
 
 `/lead-triage` drafts an intro email and posts it as a thread reply under the
-signup post in `#new-leads`. This command sends **that one draft** — it is
-invoked by a human replying inside that specific thread with
-`@salesbot /lead-send-approved`, which reaches this command as a Slack mention
-carrying that thread's `thread_ts`. It is the **only** command permitted to
-call `send_email`, and it runs under the `settings-sender.json` profile.
+signup post in `#new-leads`. This sends **that one draft**. It is not gated by
+a specific command string — apply this whenever `@salesbot` is mentioned
+inside that lead's thread and the message is asking for the draft to be sent
+("send it", "go ahead", "yes send this", or the literal `/lead-send-approved`
+all count). It is the **only** action permitted to call `send_email`, and it
+only runs when the workflow's permission profile allows that tool at all
+(`settings-sender.json`) — see `claude.yml`'s "Continuing a thread" and
+"Boundaries" sections for how that's decided.
 
-A human typing this command, inside this specific thread, **is** the
-authorization to send — there is no separate reaction or flag to check. That's
-why it only ever acts on the thread it was invoked from, never the whole
-channel.
+The message being a genuine request to send, inside this specific thread, **is
+the authorization** — there is no separate reaction or flag to check. That is
+also why this only ever acts on the thread it was invoked from, never the
+whole channel: if the message is ambiguous about wanting a send (e.g. just
+"thanks" or a question), don't send — reply normally instead.
 
 ---
 
@@ -89,9 +93,10 @@ channel-wide summary needed; this command only ever touches one thread.
 
 ## Rules
 
-1. **Invocation inside the thread is the only authorization to send.** Trust
-   whoever posted it in that thread — this repo's trust model is a small
-   private channel, not an audit trail.
+1. **A clear send request inside the thread is the only authorization to
+   send.** Trust whoever posted it in that thread — this repo's trust model is
+   a small private channel, not an audit trail. If it's not clearly a send
+   request, don't send.
 2. **Only act on the thread this run was mentioned in.** Never scan
    `#new-leads` for other approvable drafts — that is `/lead-triage`'s job to
    surface, not this command's job to go looking for.
