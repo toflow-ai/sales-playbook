@@ -32,7 +32,18 @@ Slack app_mention event
   bot events), pointing at the n8n webhook URL.
 - The `app_mentions:read` bot scope is required in addition to the scopes
   listed above.
-- Invite `@salesbot` to any channel it should be mentionable in.
+- Invite `@salesbot` to any channel it should be mentionable in. This is what
+  scopes it, not the n8n config — the Slack app subscribes to `app_mention`
+  workspace-wide, so a channel it isn't a member of just never generates the
+  event in the first place.
+- E.g. in `#toflow-sales`, a plain top-level `@salesbot /pipeline-review` (or
+  `/forecast`, `research <company>`, or open-ended instructions) runs under
+  the default profile — read/research/draft, no sending — and replies in a
+  new thread started on that mention (`thread_ts` = the mention's own `ts`,
+  per the Transform step below). No special-casing needed per channel; only
+  `#new-leads` gets the extra sender-profile rule, because only it has a
+  drafted email to approve. Any other channel `@salesbot` is invited to
+  behaves the same generic, non-sending way.
 
 ### n8n workflow
 
