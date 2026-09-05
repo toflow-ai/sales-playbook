@@ -67,8 +67,10 @@ Slack app_mention event
      else `event.ts` (mention was top-level — reply in a new thread on it).
    - `settings_file`: this is the one security-relevant decision n8n makes,
      and it's a plain equality check, not text parsing —
-     `event.channel == "C0APE9SJM0E" && thread_ts is present` →
-     `.github/claude/settings-sender.json`, else
+     `event.channel == "C0APE9SJM0E" && event.thread_ts is present` (the raw
+     Slack field, checked *before* the `thread_ts` fallback above — that
+     fallback field is always populated and would make this check always
+     true) → `.github/claude/settings-sender.json`, else
      `.github/claude/settings-default.json`. In other words: only a *reply
      inside an existing thread in `#new-leads`* ever runs with `send_email`
      available at all — a fresh top-level mention, or a mention in any other
@@ -110,6 +112,7 @@ a runner:
 |---|---|---|
 | `toflow` | `mcp-remote`, browser OAuth | `type: http` + `Authorization: Bearer $TOFLOW_API_KEY` |
 | `ai-ark` | token in the URL | same, from a secret |
+| `posthog` | token in the header | same, from a secret |
 | `google-calendar` | `gcal.mcp.claude.com`, a Claude.ai-hosted connector tied to your Claude login | **not available** — needs a self-hosted Google MCP with a service account |
 | `slack` | — | `slack-mcp-server` over stdio with a bot token |
 
@@ -128,6 +131,7 @@ Set these under **Settings → Secrets and variables → Actions**.
 | `SLACK_MCP_XOXB_TOKEN` | yes | Slack app bot token (`xoxb-…`), see below |
 | `SLACK_CHANNEL` | yes | Default channel **ID** (`C…`), not `#name` |
 | `AI_ARK_TOKEN` | no | Omit to run without ai-ark |
+| `POSTHOG_API_KEY` | no | Omit to run without PostHog (`/lead-triage`'s journey lookup skips silently) |
 
 `claude setup-token` produces long-lived credentials tied to your Claude
 subscription — every scheduled run bills your quota, and the token is a static

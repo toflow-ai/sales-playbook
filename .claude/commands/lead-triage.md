@@ -76,7 +76,7 @@ Slack card.
 
 ## Step 3 — Research the lead
 
-Budget roughly 3-4 tool calls per lead; this is qualification, not a dossier.
+Budget roughly 5-6 tool calls per lead; this is qualification, not a dossier.
 
 1. `enrich_person_by_linkedin` if the post carries a LinkedIn URL, else
    `enrich_person_email` on the signup address.

@@ -35,6 +35,14 @@ if [[ -n "${AI_ARK_TOKEN:-}" ]]; then
   }')"
 fi
 
+if [[ -n "${POSTHOG_API_KEY:-}" ]]; then
+  add posthog "$(jq -n --arg t "$POSTHOG_API_KEY" '{
+    type: "http",
+    url: "https://mcp.posthog.com/mcp",
+    headers: { Authorization: ("Bearer " + $t) }
+  }')"
+fi
+
 if [[ -n "${SLACK_MCP_XOXB_TOKEN:-}" ]]; then
   # Posting is disabled unless SLACK_MCP_ADD_MESSAGE_TOOL is set. We scope it to
   # the run's target channel rather than `true`, so a prompt injection carried in
