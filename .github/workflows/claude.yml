@@ -28,7 +28,7 @@ on:
       model:
         required: false
         type: choice
-        default: claude-opus-5
+        default: claude-sonnet-5
         options: [claude-opus-5, claude-sonnet-5]
       max_turns:
         description: "Turn budget. Raise for research-heavy runs."
@@ -59,7 +59,7 @@ on:
       model:
         required: false
         type: string
-        default: claude-opus-5
+        default: claude-sonnet-5
       max_turns:
         required: false
         type: string
