@@ -5,7 +5,73 @@ GitHub runner, with the toflow, ai-ark, and Slack MCP servers attached, and has
 Claude post the result to Slack.
 
 Trigger it from **Actions → Claude → Run workflow**, or call it from another
-workflow (see [Adding a scheduled workflow](#adding-a-scheduled-workflow)).
+workflow (see [Adding a scheduled workflow](#adding-a-scheduled-workflow)), or
+from an `@salesbot` mention in Slack via n8n (see below).
+
+## Triggering from an @salesbot mention (n8n)
+
+Slack's Events API needs a public HTTPS endpoint, which this repo doesn't
+host — that endpoint is an n8n workflow instead. The flow:
+
+```
+Slack app_mention event
+      │
+      ▼  n8n webhook
+  strip the "<@BOTID> " prefix from event.text → prompt
+      │
+      ▼  n8n calls the GitHub REST API
+  POST /repos/toflow-ai/sales-playbook/actions/workflows/claude.yml/dispatches
+      │
+      ▼  claude.yml (workflow_dispatch)
+  runs the prompt, replies in the mention's thread
+```
+
+### Slack app config
+
+- Subscribe to the `app_mention` event (Event Subscriptions → Subscribe to
+  bot events), pointing at the n8n webhook URL.
+- The `app_mentions:read` bot scope is required in addition to the scopes
+  listed above.
+- Invite `@salesbot` to any channel it should be mentionable in.
+
+### n8n workflow
+
+1. **Webhook node** — receives the Slack event. Slack requires the endpoint
+   to echo back `challenge` on the one-time URL verification request, and to
+   respond within 3 seconds on every request after that — do the GitHub call
+   without making Slack wait on it (respond `200` first, or run the HTTP
+   Request node without blocking the webhook response).
+2. **Filter** — `event.type == "app_mention"` (Slack redelivers on retries
+   and also fires `message` events in the same channel; ignore both).
+3. **Transform** — build the dispatch payload:
+   - `prompt`: `event.text` with the leading `<@U…> ` bot mention stripped —
+     pass the rest through as-is, freeform. It reaches Claude labeled as
+     Slack-sourced, untrusted input (the `thread_ts`-gated boundary language
+     already in the prompt below), so no allowlisting is needed on this end.
+   - `slack_channel`: `event.channel`
+   - `thread_ts`: `event.thread_ts` if present (mention was inside a thread),
+     else `event.ts` (mention was top-level — reply in a new thread on it).
+4. **HTTP Request node** — call the GitHub API:
+   ```
+   POST https://api.github.com/repos/toflow-ai/sales-playbook/actions/workflows/claude.yml/dispatches
+   Authorization: Bearer <GitHub PAT>
+   Accept: application/vnd.github+json
+   Content-Type: application/json
+
+   { "ref": "main", "inputs": { "prompt": "...", "slack_channel": "...", "thread_ts": "..." } }
+   ```
+   The PAT needs `actions: write` + `contents: read` on this repo (a
+   fine-grained token scoped to just `toflow-ai/sales-playbook` is enough —
+   store it as an n8n credential, not inline in the workflow).
+
+`workflow_dispatch` is fire-and-forget: the API call returns `204` with no run
+ID. If you need to correlate a dispatch back to a specific Slack event, add a
+`GITHUB_RUN_ID`-free correlation instead — e.g. have n8n poll
+`GET /repos/.../actions/workflows/claude.yml/runs` for the next run created
+after the dispatch, or skip correlation entirely and rely on the Slack thread
+reply as the confirmation that it ran. The `concurrency` block in `claude.yml`
+already serializes overlapping mentions so a burst of them queues instead of
+racing.
 
 ## Why CI does not use `.mcp.json`
 
@@ -125,12 +191,13 @@ Two workflows, split so that no email leaves without a human seeing it.
       ▼  lead-triage.yml          (send_email BLOCKED)
   research → dedupe → create person/company/deal → draft email
       │
-      ▼  posts one card per lead, top-level, to #sales-bot-updates
+      ▼  posts the card as a thread reply on the signup post,
+         reacts ✅ on the signup post itself ("triaged")
       │
-      ▼  a human reacts ✅ (or ❌)
+      ▼  a human reacts ✅ (or ❌) on the reply
       │
       ▼  lead-send-approved.yml   (send_email PERMITTED)
-  verify recipient → send → react 📨
+  verify recipient → send → react 📨 on the reply
 ```
 
 Both are `workflow_dispatch` only. Add a `schedule:` to stage 1 once it has
@@ -156,14 +223,23 @@ approval to message someone on another channel.
 
 ### Triage state is Slack reactions
 
-`conversations_history` returns reactions as `name:count`. ✅ means handled, ❌
-rejected, 📨 (on a card) already sent.
+Both `conversations_history` and `conversations_replies` return reactions as
+`name:count`. ✅ means handled, ❌ rejected, 📨 (on a reply) already sent.
 
+Everything lives in `#new-leads` now — there is no separate review channel.
 Two constraints this design has to respect:
 
-- **Reactions on thread replies are never returned** — `conversations_replies`
-  hard-codes them empty. Anything a human reacts to must be a top-level message,
-  which is why draft cards are posted individually rather than threaded.
+- **`conversations_history` never returns thread replies at all** (not even
+  their existence, let alone reactions on them). It only sees top-level
+  messages, which is why the "already triaged" marker has to live on the
+  **signup post itself** — `/lead-triage` reacts ✅ there once it has posted a
+  draft in its thread, so the next run's channel scan skips it.
+- **The draft card's own approval state lives on the reply**, and reading it
+  back requires `conversations_replies(thread_ts=...)` on that specific
+  thread — it does correctly return each reply's reactions field (this MCP
+  server builds `conversations_history` and `conversations_replies` from the
+  same code path). `/lead-send-approved` uses the parent's ✅ just to shortlist
+  candidate threads, then fetches each one to check the reply's own reactions.
 - **Reactions are counts, not identities.** You can see that someone approved,
   never who. With a small private channel that is an acceptable trust model, but
   it is not an audit trail.
