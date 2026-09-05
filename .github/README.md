@@ -32,7 +32,18 @@ Slack app_mention event
   bot events), pointing at the n8n webhook URL.
 - The `app_mentions:read` bot scope is required in addition to the scopes
   listed above.
-- Invite `@salesbot` to any channel it should be mentionable in.
+- Invite `@salesbot` to any channel it should be mentionable in. This is what
+  scopes it, not the n8n config — the Slack app subscribes to `app_mention`
+  workspace-wide, so a channel it isn't a member of just never generates the
+  event in the first place.
+- E.g. in `#toflow-sales`, a plain top-level `@salesbot /pipeline-review` (or
+  `/forecast`, `research <company>`, or open-ended instructions) runs under
+  the default profile — read/research/draft, no sending — and replies in a
+  new thread started on that mention (`thread_ts` = the mention's own `ts`,
+  per the Transform step below). No special-casing needed per channel; only
+  `#new-leads` gets the extra sender-profile rule, because only it has a
+  drafted email to approve. Any other channel `@salesbot` is invited to
+  behaves the same generic, non-sending way.
 
 ### n8n workflow
 
@@ -45,12 +56,25 @@ Slack app_mention event
    and also fires `message` events in the same channel; ignore both).
 3. **Transform** — build the dispatch payload:
    - `prompt`: `event.text` with the leading `<@U…> ` bot mention stripped —
-     pass the rest through as-is, freeform. It reaches Claude labeled as
-     Slack-sourced, untrusted input (the `thread_ts`-gated boundary language
-     already in the prompt below), so no allowlisting is needed on this end.
+     passed straight through, freeform, no keyword parsing. It reaches Claude
+     labeled as Slack-sourced, untrusted input (the `thread_ts`-gated boundary
+     language already in `claude.yml`'s prompt), and Claude itself decides —
+     from that text plus the thread history it reads via `conversations_replies`
+     — what's actually being asked, including whether a message like "send it"
+     means finish sending a `/lead-triage` draft.
    - `slack_channel`: `event.channel`
    - `thread_ts`: `event.thread_ts` if present (mention was inside a thread),
      else `event.ts` (mention was top-level — reply in a new thread on it).
+   - `settings_file`: this is the one security-relevant decision n8n makes,
+     and it's a plain equality check, not text parsing —
+     `event.channel == "C0APE9SJM0E" && event.thread_ts is present` (the raw
+     Slack field, checked *before* the `thread_ts` fallback above — that
+     fallback field is always populated and would make this check always
+     true) → `.github/claude/settings-sender.json`, else
+     `.github/claude/settings-default.json`. In other words: only a *reply
+     inside an existing thread in `#new-leads`* ever runs with `send_email`
+     available at all — a fresh top-level mention, or a mention in any other
+     channel, never can, regardless of what the message says.
 4. **HTTP Request node** — call the GitHub API:
    ```
    POST https://api.github.com/repos/toflow-ai/sales-playbook/actions/workflows/claude.yml/dispatches
@@ -58,11 +82,17 @@ Slack app_mention event
    Accept: application/vnd.github+json
    Content-Type: application/json
 
-   { "ref": "main", "inputs": { "prompt": "...", "slack_channel": "...", "thread_ts": "..." } }
+   { "ref": "main", "inputs": { "prompt": "...", "slack_channel": "...", "thread_ts": "...", "settings_file": "..." } }
    ```
    The PAT needs `actions: write` + `contents: read` on this repo (a
    fine-grained token scoped to just `toflow-ai/sales-playbook` is enough —
    store it as an n8n credential, not inline in the workflow).
+
+Having `settings_file` come from a channel-ID equality check rather than a
+GitHub-side string match on the message means n8n can never be tricked by
+message content into granting `send_email` — the only lever is which channel
+and thread the mention landed in, and that's Slack's own routing, not
+attacker-controlled text.
 
 `workflow_dispatch` is fire-and-forget: the API call returns `204` with no run
 ID. If you need to correlate a dispatch back to a specific Slack event, add a
@@ -82,6 +112,7 @@ a runner:
 |---|---|---|
 | `toflow` | `mcp-remote`, browser OAuth | `type: http` + `Authorization: Bearer $TOFLOW_API_KEY` |
 | `ai-ark` | token in the URL | same, from a secret |
+| `posthog` | token in the header | same, from a secret |
 | `google-calendar` | `gcal.mcp.claude.com`, a Claude.ai-hosted connector tied to your Claude login | **not available** — needs a self-hosted Google MCP with a service account |
 | `slack` | — | `slack-mcp-server` over stdio with a bot token |
 
@@ -100,6 +131,7 @@ Set these under **Settings → Secrets and variables → Actions**.
 | `SLACK_MCP_XOXB_TOKEN` | yes | Slack app bot token (`xoxb-…`), see below |
 | `SLACK_CHANNEL` | yes | Default channel **ID** (`C…`), not `#name` |
 | `AI_ARK_TOKEN` | no | Omit to run without ai-ark |
+| `POSTHOG_API_KEY` | no | Omit to run without PostHog (`/lead-triage`'s journey lookup skips silently) |
 
 `claude setup-token` produces long-lived credentials tied to your Claude
 subscription — every scheduled run bills your quota, and the token is a static
@@ -115,9 +147,9 @@ federation via `anthropic_federation_rule_id`.
    | Scope | Why |
    |---|---|
    | `channels:read`, `groups:read`, `im:read`, `mpim:read` | **required to start at all** — see below |
-   | `channels:history`, `groups:history` | reading messages and their reactions |
+   | `channels:history`, `groups:history` | reading messages and threads |
    | `chat:write` | posting |
-   | `reactions:read`, `reactions:write` | triage state (✅ / ❌ / 📨) |
+   | `app_mentions:read` | receiving `@salesbot` mentions |
    | `users:read` | resolving user IDs to names |
 
    The four `*:read` scopes are not optional. On startup the server caches the
@@ -169,84 +201,105 @@ credentials. Keeping "can send" and "can delete" off the table is most of the
 defense; the prompt also tells Claude to treat record content as data, never as
 instructions. Widen the allowlist deliberately, not by default.
 
-Posting is scoped to one channel per run via `SLACK_MCP_ADD_MESSAGE_TOOL`, so
-an injected instruction cannot turn the bot loose on the workspace.
+Posting is scoped to the run's own destination channel plus
+`#sales-bot-updates` via `SLACK_MCP_ADD_MESSAGE_TOOL` (a comma-separated
+allowlist) — nowhere else, so an injected instruction cannot turn the bot
+loose on the workspace.
 
 ## Delivery
 
-Claude posts to Slack itself, through the MCP server. Because that is a tool
-call rather than a workflow step, a run could finish without posting — the
-**Check the Slack post landed** step reads the execution transcript and fails
-the job if `conversations_add_message` was never called.
+Claude posts to Slack itself, through the MCP server — twice, per its
+Deliverables instructions: a detailed execution log to `#sales-bot-updates`
+(`C0BUL9U9CFK`) first, then a short reply at the run's actual destination
+(the mention's thread, or the target channel for a manual/scheduled run)
+linking back to that log via its permalink. When the destination already *is*
+`#sales-bot-updates`, the one log post covers both and there's no duplicate.
 
-The full report is also written to `report.md` and uploaded as a run artifact.
+There's no `report.md` artifact any more — `#sales-bot-updates` is the
+execution history now, and it's readable without downloading anything from
+Actions.
+
+Because both posts are tool calls rather than workflow steps, a run could
+finish without posting at all — the **Check the Slack post landed** step
+reads the execution transcript and fails the job if
+`conversations_add_message` was never called at least once.
 
 ## The lead triage flow
 
-Two workflows, split so that no email leaves without a human seeing it.
+One workflow (`claude.yml`) runs both stages — what changes between them is
+the prompt and the permission profile, not the workflow file.
 
 ```
 #new-leads signup
       │
-      ▼  lead-triage.yml          (send_email BLOCKED)
+      ▼  claude.yml, prompt "/lead-triage", settings-default.json (send_email BLOCKED)
   research → dedupe → create person/company/deal → draft email
       │
-      ▼  posts the card as a thread reply on the signup post,
-         reacts ✅ on the signup post itself ("triaged")
+      ▼  posts the card as a thread reply on the signup post
       │
-      ▼  a human reacts ✅ (or ❌) on the reply
+      ▼  a human replies in that thread — "send it", or the
+         literal "/lead-send-approved", either works
       │
-      ▼  lead-send-approved.yml   (send_email PERMITTED)
-  verify recipient → send → react 📨 on the reply
+      ▼  n8n sees channel=#new-leads + thread_ts set → dispatches
+         claude.yml again, this time with settings-sender.json (send_email PERMITTED)
+  Claude reads the thread, recognizes the send request, follows
+  .claude/commands/lead-send-approved.md → verify recipient → send → confirm in-thread
 ```
 
-Both are `workflow_dispatch` only. Add a `schedule:` to stage 1 once it has
-proven itself; leave stage 2 manual.
+Stage 1 is `workflow_dispatch` only for now (`prompt: "/lead-triage <N>"`
+from the Actions tab, or a future `schedule:` caller — see [Adding a scheduled
+workflow](#adding-a-scheduled-workflow)). Stage 2 only ever arrives via an
+`@salesbot` mention through n8n — see [Triggering from an @salesbot
+mention](#triggering-from-an-salesbot-mention-n8n) — there is no manual
+Actions-tab entry point for it any more, since it needs a specific thread to
+act on.
 
-### Why the split
+### Why the permission split still exists
 
 Signup data is attacker-controlled — anyone can create a workspace with any
-name, company, and description. Stage 1 reads that text, researches it, and
-writes to the CRM, but cannot send anything. Only stage 2 can send, and it does
-nothing except send drafts that stage 1 wrote and a person approved.
+name, company, and description. `/lead-triage` reads that text, researches it,
+and writes to the CRM, but the run it's in never has `send_email` available.
+Sending only ever happens in a run where n8n decided, from the Slack event's
+channel and thread alone (not from message content), to grant it.
 
 That is why there are two permission profiles in `.github/claude/`:
 
-| Profile | Denies | Used by |
+| Profile | Denies | Granted when (per n8n's rule, see above) |
 |---|---|---|
-| `settings-default.json` | 30 tools, all sends included | everything |
-| `settings-sender.json` | 29 — `send_email` permitted | `lead-send-approved.yml` only |
+| `settings-default.json` | 30 tools, all sends included | everything except the row below |
+| `settings-sender.json` | 29 — `send_email` permitted | mention is a reply inside an existing `#new-leads` thread |
 
 The sender profile permits `send_email` and nothing else. WhatsApp, LinkedIn,
-InMail, deletions, and enrollment edits stay blocked: approving an email is not
-approval to message someone on another channel.
+InMail, deletions, and enrollment edits stay blocked regardless of profile:
+being allowed to send an email is not being allowed to message someone on
+another channel.
 
-### Triage state is Slack reactions
+### Triage state lives in toflow and thread text, not Slack reactions
 
-Both `conversations_history` and `conversations_replies` return reactions as
-`name:count`. ✅ means handled, ❌ rejected, 📨 (on a reply) already sent.
+There used to be a ✅/❌/📨 reaction scheme for tracking triage and approval
+state. It's gone — reactions are anonymous (you can see *that* someone
+reacted, never *who*), which made for a weak audit trail, and it meant
+`/lead-send-approved` had to batch-scan the whole channel looking for
+approved-but-unsent drafts.
 
-Everything lives in `#new-leads` now — there is no separate review channel.
-Two constraints this design has to respect:
+The replacement is simpler and ties directly to identity:
 
-- **`conversations_history` never returns thread replies at all** (not even
-  their existence, let alone reactions on them). It only sees top-level
-  messages, which is why the "already triaged" marker has to live on the
-  **signup post itself** — `/lead-triage` reacts ✅ there once it has posted a
-  draft in its thread, so the next run's channel scan skips it.
-- **The draft card's own approval state lives on the reply**, and reading it
-  back requires `conversations_replies(thread_ts=...)` on that specific
-  thread — it does correctly return each reply's reactions field (this MCP
-  server builds `conversations_history` and `conversations_replies` from the
-  same code path). `/lead-send-approved` uses the parent's ✅ just to shortlist
-  candidate threads, then fetches each one to check the reply's own reactions.
-- **Reactions are counts, not identities.** You can see that someone approved,
-  never who. With a small private channel that is an acceptable trust model, but
-  it is not an audit trail.
+- **"Already triaged"** is answered by toflow, not Slack: `/lead-triage`
+  checks whether a person + deal already exist for the signup (Step 2) and
+  skips if so. Re-scanning the same signup post on a later run is harmless.
+- **"Approved to send"** is a named human replying inside that lead's own
+  thread asking for the draft to be sent — "send it" and the literal
+  `/lead-send-approved` both work, since Claude reads the thread and decides
+  intent itself (see [Triggering from an @salesbot
+  mention](#triggering-from-an-salesbot-mention-n8n)). There is nothing to scan
+  for in advance; the mention itself carries the thread to act on, and n8n's
+  channel+thread check is what makes `send_email` available for that run at all.
+- **"Already sent"** is answered by reading the thread: `/lead-send-approved`
+  looks for its own prior `Sent to <email> at <time>` reply before sending
+  again.
 
-The bot token already carries `reactions:read` and `reactions:write`. The MCP
-server does not register write tools unless they are named, so
-`build-mcp-config.sh` sets `SLACK_MCP_ENABLED_TOOLS` explicitly.
+This means `SLACK_MCP_ENABLED_TOOLS` no longer needs `reactions_add`, and the
+bot token doesn't need `reactions:read`/`reactions:write` for this flow at all.
 
 ### Prerequisite
 
