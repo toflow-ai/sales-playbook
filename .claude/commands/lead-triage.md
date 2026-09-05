@@ -91,6 +91,19 @@ Budget roughly 3-4 tool calls per lead; this is qualification, not a dossier.
 2. Company website and description — `get_company` if the record exists,
    otherwise `WebSearch` / `WebFetch` on the domain.
 3. `mcp__ai-ark__company_search` for firmographics when the domain is unclear.
+4. PostHog journey and discovery source — find the person by email
+   (`persons-list` with `email=<signup email>`), then:
+   - Discovery: query `persons` for `$initial_referring_domain`,
+     `$initial_referrer`, `$initial_utm_source/medium/campaign`, and
+     `$virt_initial_channel_type`. This is how they found toflow (e.g. a
+     specific AI assistant referral, organic search, direct).
+   - Journey: `execute-sql` against `events` for that `person_id`, last 3
+     days, ordered by timestamp — enough to see whether they completed
+     onboarding, created a workspace, and reached `account_connected` (a
+     verified connection) vs. only the onboarding-flag events. Note where
+     they dropped off.
+   Skip silently if the person has no PostHog data yet (event pipeline lag) —
+   do not block the card on it.
 
 Look for: what the company actually does, headcount, whether the signup is a
 decision maker, and anything that contradicts the signup data.
@@ -99,8 +112,8 @@ decision maker, and anything that contradicts the signup data.
 Flag rather than proceed when you see: a company whose site and LinkedIn tell
 different stories, a generic or shared mailbox (`info@`, `data@`), a personal
 email domain for a claimed enterprise, or a stated identity you cannot
-corroborate anywhere. Put the concern in the Slack card and still draft the
-email — but say plainly that it needs a human read.
+corroborate anywhere. Note the concern in the card's one-line summary and still
+draft the email — but say plainly that it needs a human read.
 
 ## Step 4 — Create the records
 
@@ -149,9 +162,11 @@ Each lead's card is a **reply in the thread of its own signup post** in
 *Signup:* <email> · Workspace <n> · <date>
 *Created:* <person / company / deal, or "attached to existing deal">
 *Deal:* <link to the toflow deal>
-*Qualification:* <concern, or "nothing flagged">
 
-*Draft intro email:*
+*Came from:* <discovery source, e.g. "ChatGPT referral", "Google organic", "Direct"> (skip line if no PostHog data)
+*Journey:* <one line — signed up → onboarded → workspace created → connected account? / dropped off at X> (skip line if no PostHog data)
+
+*Draft intro email:* <direct link to open the draft in toflow>
 > <subject>
 > <body>
 
